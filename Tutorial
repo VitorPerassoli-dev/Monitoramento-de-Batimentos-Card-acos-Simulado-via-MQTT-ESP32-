@@ -1,0 +1,142 @@
+Abra o simulador no Wokwi.
+
+Monte o circuito com:
+-ESP32
+-Potenciômetro ligado ao GPIO 34
+-LED ligado ao GPIO 25
+-Protoboard
+
+Codigo do Projeto
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+//Config da Rede
+const char* ssid = "Wokwi-GUEST"; 
+const char* password = "";
+
+//Config do Broker MQTT
+const char* mqtt_broker = "broker.hivemq.com";
+const int   mqtt_port   = 1883;
+
+const char* mqtt_pub_topic  = "vitu/projeto/bpm";
+const char* mqtt_sub_topic  = "vitu/projeto/led";   
+
+//Pinos Usados
+int ledPin = 18;
+int potPin = 34;   
+
+//Objetos
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+//Callback do MQTT
+void callback(char* topic, byte* payload, unsigned int length) {
+  if (strcmp(topic, mqtt_sub_topic) == 0) {
+    if (payload[0] == '1') {
+      digitalWrite(ledPin, HIGH);
+    } else {
+      digitalWrite(ledPin, LOW);
+    }
+  }
+}
+
+//Reconexão do MQTT
+void reconnectMQTT() {
+  while (!client.connected()) {
+    Serial.print("Conectando ao broker MQTT... ");
+
+    String clientId = "VituProjeto-";
+    clientId += String(random(0xffff), HEX);
+
+    if (client.connect(clientId.c_str())) {
+      Serial.println("Conectado!");
+      client.subscribe(mqtt_sub_topic);
+    } else {
+      Serial.print("Falha, rc=");
+      Serial.print(client.state());
+      Serial.println(" — Tentando novamente em 2s");
+      delay(2000);
+    }
+  }
+}
+
+//Setup
+void setup() {
+  Serial.begin(115200);
+  pinMode(ledPin, OUTPUT);
+
+  Serial.print("Conectando ao WiFi...");
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(400);
+    Serial.print(".");
+  }
+
+  Serial.println("\nWiFi conectado!");
+  Serial.println(WiFi.localIP());
+
+  client.setServer(mqtt_broker, mqtt_port);
+  client.setCallback(callback);
+
+  randomSeed(analogRead(potPin));
+}
+
+//Loop Principal
+void loop() {
+  if (!client.connected()) {
+    reconnectMQTT();
+  }
+  client.loop();
+
+//Simulação do Batimento Cardíaco
+
+  static int bpm = 80;           //Valor Inicial
+  static int contador = 0;       //Conta 5 batimentos
+  static bool modoPico = false;  //Indica Pico Cardíaco
+
+  if (!modoPico) {
+    int variacao = random(-2, 3);  //Pequenas variações para deixar mais realistas possivel
+    bpm += variacao;
+
+    if (bpm < 60) bpm = 60;
+    if (bpm > 100) bpm = 100;
+
+    contador++;
+
+    if (contador >= 5) {
+      modoPico = true;  //Ativa o Pico no Próximo Ciclo
+      contador = 0;
+    }
+
+  } else {
+    //Pico "realista"
+    bpm = random(120, 141);
+    modoPico = false;   //Volta ao ciclo normal 
+    Serial.println("--Pico--");
+  }
+
+  Serial.print("BPM (simulado): ");
+  Serial.println(bpm);
+
+  //Envia pelo MQTT
+  char buffer[10];
+  sprintf(buffer, "%d", bpm);
+  client.publish(mqtt_pub_topic, buffer);
+
+  //LED acende quando BPM está alto
+  if (bpm >= 120) {
+    digitalWrite(ledPin, HIGH);
+  } else {
+    digitalWrite(ledPin, LOW);
+  }
+
+  delay(500);
+}
+
+
+Configure o MQTT:
+-Broker: broker.hivemq.com
+-Porta: 1883
+-Tópico: vitu/projeto/bpm
+Rode a simulação e abra o Monitor Serial.
