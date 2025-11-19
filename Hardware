@@ -1,0 +1,15 @@
+Componentes Usados
+  ESP32 DevKit V1
+  Ponteciômetro (para simular um sensor cardiaco PPG)
+  LED atuador
+  Resistor 220
+  Protoboard
+  Jumpers
+
+Funções Implementadas
+  Conexão WiFi (TCP/IP)
+  Conexão ao broker MQTT (PubSubClient)
+  Reconexão automática se cair
+  Publicação de valores de BPM
+  Leitura analógica com analogRead()
+  Controle do LED como Atuador
