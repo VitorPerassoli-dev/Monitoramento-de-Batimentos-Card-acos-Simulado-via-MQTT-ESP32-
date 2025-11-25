@@ -11,25 +11,26 @@ Codigo do Projeto
 #include <PubSubClient.h>
 
 //Config da Rede
-const char* ssid = "Wokwi-GUEST"; 
+const char* ssid = "Wokwi-GUEST";
 const char* password = "";
 
 //Config do Broker MQTT
 const char* mqtt_broker = "broker.hivemq.com";
 const int   mqtt_port   = 1883;
 
-const char* mqtt_pub_topic  = "vitu/projeto/bpm";
-const char* mqtt_sub_topic  = "vitu/projeto/led";   
+//Tópicos MQTT
+const char* mqtt_pub_topic = "vitu/projeto/bpm";
+const char* mqtt_sub_topic = "vitu/projeto/led";
 
-//Pinos Usados
+//Pinos
 int ledPin = 18;
-int potPin = 34;   
+int potPin = 34;
 
 //Objetos
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-//Callback do MQTT
+//Callback para receber mensagens MQTT
 void callback(char* topic, byte* payload, unsigned int length) {
   if (strcmp(topic, mqtt_sub_topic) == 0) {
     if (payload[0] == '1') {
@@ -40,7 +41,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
-//Reconexão do MQTT
+//Reconexão MQTT
 void reconnectMQTT() {
   while (!client.connected()) {
     Serial.print("Conectando ao broker MQTT... ");
@@ -60,9 +61,9 @@ void reconnectMQTT() {
   }
 }
 
-//Setup
 void setup() {
   Serial.begin(115200);
+
   pinMode(ledPin, OUTPUT);
 
   Serial.print("Conectando ao WiFi...");
@@ -78,65 +79,39 @@ void setup() {
 
   client.setServer(mqtt_broker, mqtt_port);
   client.setCallback(callback);
-
-  randomSeed(analogRead(potPin));
 }
 
-//Loop Principal
 void loop() {
+
+  //Mantém a conexão com MQTT
   if (!client.connected()) {
     reconnectMQTT();
   }
   client.loop();
 
-//Simulação do Batimento Cardíaco
+  // Lê o valor do potenciômetro (0 - 4095)
+  int leitura = analogRead(potPin);
 
-  static int bpm = 80;           //Valor Inicial
-  static int contador = 0;       //Conta 5 batimentos
-  static bool modoPico = false;  //Indica Pico Cardíaco
+  // Mapeia o valor para uma faixa realista de batimentos cardíacos
+  int bpm = map(leitura, 0, 4095, 50, 160);
 
-  if (!modoPico) {
-    int variacao = random(-2, 3);  //Pequenas variações para deixar mais realistas possivel
-    bpm += variacao;
-
-    if (bpm < 60) bpm = 60;
-    if (bpm > 100) bpm = 100;
-
-    contador++;
-
-    if (contador >= 5) {
-      modoPico = true;  //Ativa o Pico no Próximo Ciclo
-      contador = 0;
-    }
-
-  } else {
-    //Pico "realista"
-    bpm = random(120, 141);
-    modoPico = false;   //Volta ao ciclo normal 
-    Serial.println("--Pico--");
-  }
-
-  Serial.print("BPM (simulado): ");
+  Serial.print("BPM (via potenciômetro): ");
   Serial.println(bpm);
 
-  //Envia pelo MQTT
+  // Envia BPM para o MQTT
   char buffer[10];
   sprintf(buffer, "%d", bpm);
   client.publish(mqtt_pub_topic, buffer);
 
-  //LED acende quando BPM está alto
+  // LED acende se BPM for alto
   if (bpm >= 120) {
     digitalWrite(ledPin, HIGH);
   } else {
     digitalWrite(ledPin, LOW);
   }
 
-  delay(500);
+  delay(300);
 }
 
 
-Configure o MQTT:
--Broker: broker.hivemq.com
--Porta: 1883
--Tópico: vitu/projeto/bpm
-Rode a simulação e abra o Monitor Serial.
+
