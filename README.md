@@ -1,2 +1,109 @@
 # Monitoramento-de-Batimentos-Card-acos-Simulado-via-MQTT-ESP32-
 Este projeto simula o monitoramento de batimentos cardíacos usando um ESP32, um potenciômetro e um LED. O valor é lido e convertido para BPM e enviado ao MQTT HiveMQ via TCP/IP, desenvolvido totalmente no Wokwi.
+
+Codigo do Projeto
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+//Config da Rede
+const char* ssid = "Wokwi-GUEST";
+const char* password = "";
+
+//Config do Broker MQTT
+const char* mqtt_broker = "broker.hivemq.com";
+const int   mqtt_port   = 1883;
+
+//Tópicos MQTT
+const char* mqtt_pub_topic = "vitu/projeto/bpm";
+const char* mqtt_sub_topic = "vitu/projeto/led";
+
+//Pinos
+int ledPin = 18;
+int potPin = 34;
+
+//Objetos
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+//Callback para receber mensagens MQTT
+void callback(char* topic, byte* payload, unsigned int length) {
+  if (strcmp(topic, mqtt_sub_topic) == 0) {
+    if (payload[0] == '1') {
+      digitalWrite(ledPin, HIGH);
+    } else {
+      digitalWrite(ledPin, LOW);
+    }
+  }
+}
+
+//Reconexão MQTT
+void reconnectMQTT() {
+  while (!client.connected()) {
+    Serial.print("Conectando ao broker MQTT... ");
+
+    String clientId = "VituProjeto-";
+    clientId += String(random(0xffff), HEX);
+
+    if (client.connect(clientId.c_str())) {
+      Serial.println("Conectado!");
+      client.subscribe(mqtt_sub_topic);
+    } else {
+      Serial.print("Falha, rc=");
+      Serial.print(client.state());
+      Serial.println(" — Tentando novamente em 2s");
+      delay(2000);
+    }
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(ledPin, OUTPUT);
+
+  Serial.print("Conectando ao WiFi...");
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(400);
+    Serial.print(".");
+  }
+
+  Serial.println("\nWiFi conectado!");
+  Serial.println(WiFi.localIP());
+
+  client.setServer(mqtt_broker, mqtt_port);
+  client.setCallback(callback);
+}
+
+void loop() {
+
+  //Mantém a conexão com MQTT
+  if (!client.connected()) {
+    reconnectMQTT();
+  }
+  client.loop();
+
+  // Lê o valor do potenciômetro (0 - 4095)
+  int leitura = analogRead(potPin);
+
+  // Mapeia o valor para uma faixa realista de batimentos cardíacos
+  int bpm = map(leitura, 0, 4095, 50, 160);
+
+  Serial.print("BPM (via potenciômetro): ");
+  Serial.println(bpm);
+
+  // Envia BPM para o MQTT
+  char buffer[10];
+  sprintf(buffer, "%d", bpm);
+  client.publish(mqtt_pub_topic, buffer);
+
+  // LED acende se BPM for alto
+  if (bpm >= 120) {
+    digitalWrite(ledPin, HIGH);
+  } else {
+    digitalWrite(ledPin, LOW);
+  }
+
+  delay(300);
+}
