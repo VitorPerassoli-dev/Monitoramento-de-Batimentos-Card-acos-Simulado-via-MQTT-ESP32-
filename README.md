@@ -1,98 +1,41 @@
-# Monitoramento-de-Batimentos-Card-acos-Simulado-via-MQTT-ESP32-
-Este projeto simula o monitoramento de batimentos cardíacos usando um ESP32, um potenciômetro e um LED. O valor é lido e convertido para BPM e enviado ao MQTT HiveMQ via TCP/IP, desenvolvido totalmente no Wokwi.
+❤️ Sistema de Monitoramento de Batimentos Cardíacos (IoT + MQTT)
 
-Codigo do Projeto
+Este projeto apresenta um protótipo de monitoramento de batimentos cardíacos (BPM) utilizando ESP32 e comunicação MQTT. O valor do BPM é simulado por um potenciômetro e enviado em tempo real para um painel via MQTTX. Quando o BPM ultrapassa um limite de segurança, um LED de alerta é acionado.
 
-#include <WiFi.h>
-#include <PubSubClient.h>
+🔧 Hardware (Simulado)
 
-const char* ssid = "Wokwi-GUEST";
-const char* password = "";
+• Microcontrolador: ESP32 (DevKit V1)
 
-const char* mqtt_broker = "broker.hivemq.com";
-const int   mqtt_port   = 1883;
-const char* mqtt_pub_topic = "vitu/projeto/bpm";
-const char* mqtt_sub_topic = "vitu/projeto/led";
+• Sensor: Potenciômetro (no pino D34) — simula o sensor de batimento cardíaco
 
-int ledPin = 18;
-int potPin = 34;
+• Atuador: LED vermelho (no pino D25) — alerta de BPM alto
 
-WiFiClient espClient;
-PubSubClient client(espClient);
+• Resistor: 220Ω (em série com o LED)
 
-void callback(char* topic, byte* payload, unsigned int length) {
-  if (strcmp(topic, mqtt_sub_topic) == 0) {
-    if (payload[0] == '1') {
-      digitalWrite(ledPin, HIGH);
-    } else {
-      digitalWrite(ledPin, LOW);
-    }
-  }
-}
+🚀 Como testar (Simulação)
+1. Wokwi
 
-  
-void reconnectMQTT() {
-  while (!client.connected()) {
-    Serial.print("Conectando ao broker MQTT... ");
+Abra o projeto no Wokwi:
 
-    String clientId = "VituProjeto-";
-    clientId += String(random(0xffff), HEX);
+https://wokwi.com/projects/447801207838347265
 
-    if (client.connect(clientId.c_str())) {
-      Serial.println("Conectado!");
-      client.subscribe(mqtt_sub_topic);
-    } else {
-      Serial.print("Falha, rc=");
-      Serial.print(client.state());
-      Serial.println(" — Tentando novamente em 2s");
-      delay(2000);
-    }
-  }
-}
+2. MQTTX
 
-void setup() {
-  Serial.begin(115200);
+No APLICATIVO MQTTX (tem que ser no app pois la tem a opção de mqtt, no web não tem) configure assim:
 
-  pinMode(ledPin, OUTPUT);
+Host: broker.hivemq.com
 
-  Serial.print("Conectando ao WiFi...");
-  WiFi.begin(ssid, password);
+Porta: 1883
 
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(400);
-    Serial.print(".");
-  }
+Client ID: esp32_vitu
 
-  Serial.println("\nWiFi conectado!");
-  Serial.println(WiFi.localIP());
+Username / Password: (deixe em branco)
 
-  client.setServer(mqtt_broker, mqtt_port);
-  client.setCallback(callback);
-}
+SSL/TLS: Desativado
 
-void loop() {
+Depois, vá em Subscribe e adicione o tópico:
 
-  if (!client.connected()) {
-    reconnectMQTT();
-  }
-  client.loop();
- 
-  int leitura = analogRead(potPin);
- 
-  int bpm = map(leitura, 0, 4095, 50, 160);
+vitu/projeto/bpm
 
-  Serial.print("BPM (via potenciômetro): ");
-  Serial.println(bpm);
 
-  char buffer[10];
-  sprintf(buffer, "%d", bpm);
-  client.publish(mqtt_pub_topic, buffer);
-
-  if (bpm >= 120) {
-    digitalWrite(ledPin, HIGH);
-  } else {
-    digitalWrite(ledPin, LOW);
-  }
-
-  delay(300);
-}
+Agora, ao girar o potenciômetro, os BPMs irão aparecer em tempo real. 
